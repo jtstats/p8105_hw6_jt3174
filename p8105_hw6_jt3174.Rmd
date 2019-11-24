@@ -258,6 +258,19 @@ boot_straps = boot_straps %>%
 
 ```
 
+```{r r-hat squared 95% CI}
+
+r_square_CI = boot_straps %>% 
+  # keep only the value that has value "tmin"
+  filter(term == "tmin") %>% 
+  pull(., r.squared)%>% 
+  # obtain CI
+  quantile(., c(.025, .975))
+
+```
+
+The CI of $\hat{r}^2$ that comes from bootstrap is (`r r_square_CI[[1]]`, `r r_square_CI[[2]]`).
+
 ```{r r-hat squared plot}
 
 boot_straps %>% 
@@ -266,19 +279,14 @@ boot_straps %>%
   # plot: x-axis = r-squared
   ggplot(aes(x = r.squared)) +
   geom_density(alpha = 0.5, fill = "darksalmon") +
-    labs(
+  geom_vline(aes(xintercept = r_square_CI[[1]]), color = "darkgreen", linetype = "longdash") +
+  geom_vline(aes(xintercept = r_square_CI[[2]]), color = "darkgreen", linetype = "longdash") +
+  labs(
     title = "Density Plot of the Estimate of R square",
     x = "Estimate of R square",
     y = "Density",
-    caption = "Data: 2017 Central Park weather data") 
+    caption = "Data here comes from 2017 Central Park Weather Data")
 
 ```
 
-According to density of $\hat{r}^2$, we can see that this is close to normal curve. Then, we look for the 95% CI of $\hat{r}^2$.
-
-```{r r-hat squared 95% CI}
-
-
-
-```
-
+According to density of $\hat{r}^2$, we can see that this is close to normal curve. 
