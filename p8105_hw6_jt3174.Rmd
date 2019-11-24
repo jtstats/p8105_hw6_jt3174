@@ -14,6 +14,7 @@ set.seed(1)
 library(tidyverse)
 library(modelr)
 library(mgcv)
+library(ggplot2)
 library(viridis)
 library(ggridges)
 
@@ -80,10 +81,85 @@ baby = read_csv("./data/birthweight.csv") %>%
       mrace == 3 ~ "Asian",
       mrace == 4 ~ "Puerto Rican",
       mrace == 8 ~ "Other"
-    ))
+    ))  
   )
 
-baby
+# checking if there is any missing value in the fataframe called baby
+# if all of the values in the table returned were 0's, there are no missing values
+sapply(baby, function(x) sum(is.na(x))) %>% 
+  knitr::kable(., col.names = "Number of Missing Value", caption = "Table for Variables and Their Missing Values")
+
+```
+
+There is no missing value in the dataset `baby`, and this dataset is cleaned as stated in the homework page.
+
+For a regression model to propose, I decided to use anova to test nested model. I started with full regression, and then decided by the p-value of each factor in the model to decide to keep or not for the proposed model. And then I will use anova test these two models to decided the final proposed model in this step. 
+
+```{r regression models}
+
+# full regression model
+full_model = lm(bwt ~ ., data = baby)
+
+# diaplay the model summary
+summary(full_model)$coefficient%>%
+  knitr::kable(., col.names = c("Estimate", "Std. Error", "t value","Pr(>|t|)"), caption = "result of main effect linear regression model")
+
+```
+
+Here, accoding to the p-values, I am going to keep the varaibles `babysex`, `bhead`, `blength`, `delwt`, `gaweeks`, `parity`, `smoke`. 
+
+```{r regression model proposed}
+
+# proposed model with 
+proposed_model = lm(bwt ~ babysex + bhead + blength + delwt + gaweeks + parity + smoken, data = baby)
+
+# diaplay the model summary
+summary(proposed_model)$coefficient%>%
+  knitr::kable(., col.names = c("Estimate", "Std. Error", "t value","Pr(>|t|)"), caption = "result of main effect linear regression model")
+
+# use anova() to decide which model is better
+anova(proposed_model, full_model) %>% 
+  broom::tidy()
+
+```
+
+We can see that the proposed model is a nested model for full model, and accoding to the F-test, p-value = 1.03464e-56 < significance level at 0.05, the proposed model is better than the full model. 
+
+```{r regression model}
+# add residual and prediction to the orginal dataframe
+baby_residual_prediction = baby %>% 
+  add_predictions(proposed_model) %>% 
+  add_residuals(proposed_model)
+
+# create residual vs fitted plot
+baby_residual_prediction %>% 
+  ggplot(aes(x = pred, y = resid)) +
+  geom_point(alpha = .5, color = "darksalmon") +
+  labs(title = "Residuals vs. Fitted Value Plot for Proposed Model",
+       x = "Fitted Values",
+       y = "Residuals")
+
+```
+
+Here, we fit two regression models stated in the homework page. 
+
+```{r regression models to be compared for birthweight}
+
+# One using length at birth and gestational age as predictors (main effects only)
+
+main_effect_model = lm(bwt ~ blength + gaweeks, data = baby)
+
+# diaplay the model summary
+summary(main_effect_model)$coefficient%>%
+  knitr::kable(., col.names = c("Estimate", "Std. Error", "t value","Pr(>|t|)"), caption = "result of main effect linear regression model")
+
+# One using head circumference, length, sex, and all interactions (including the three-way interaction) between these
+
+interaction_model = lm(bwt ~ bhead * blength * babysex , data = baby)
+
+# display the model summary
+summary(interaction_model)$coefficient%>%
+  knitr::kable(., col.names = c("Estimate", "Std. Error", "t value","Pr(>|t|)"), caption = "result of interaction linear regression model")
 
 ```
 
