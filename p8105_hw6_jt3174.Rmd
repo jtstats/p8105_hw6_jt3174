@@ -263,13 +263,15 @@ boot_straps = boot_straps %>%
 r_square_CI = boot_straps %>% 
   # keep only the value that has value "tmin"
   filter(term == "tmin") %>% 
-  pull(., r.squared)%>% 
+  pull(., r.squared) %>% 
   # obtain CI
-  quantile(., c(.025, .975))
+  quantile(., c(.025, .975)) %>% 
+  # convert to dataframe
+  as.data.frame()
 
 ```
 
-The CI of $\hat{r}^2$ that comes from bootstrap is (`r r_square_CI[[1]]`, `r r_square_CI[[2]]`).
+The CI of $\hat{r}^2$ that comes from bootstrap is (`r pull(r_square_CI, .)[1] `, `r pull(r_square_CI, .)[2]`).
 
 ```{r r-hat squared plot}
 
@@ -278,9 +280,12 @@ boot_straps %>%
   filter(term == "tmin") %>% 
   # plot: x-axis = r-squared
   ggplot(aes(x = r.squared)) +
+  # density plot
   geom_density(alpha = 0.5, fill = "darksalmon") +
-  geom_vline(aes(xintercept = r_square_CI[[1]]), color = "darkgreen", linetype = "longdash") +
-  geom_vline(aes(xintercept = r_square_CI[[2]]), color = "darkgreen", linetype = "longdash") +
+  # add first quartile line
+  geom_vline(aes(xintercept = pull(r_square_CI, .)[1]), color = "darkgreen", linetype = "longdash") +
+  # add thrid quartile line
+  geom_vline(aes(xintercept = pull(r_square_CI, .)[2]), color = "darkorange", linetype = "longdash") +
   labs(
     title = "Density Plot of the Estimate of R square",
     x = "Estimate of R square",
@@ -289,4 +294,56 @@ boot_straps %>%
 
 ```
 
-According to density of $\hat{r}^2$, we can see that this is close to normal curve. 
+According to density of $\hat{r}^2$, we can see that this is close to normal curve. We can also tell from the CI that most of data were distributed around the center. Hence, we can say that the estimate $\hat{r}^2$ is roughly distributed normally.
+
+```{r log(beta0*beta1)}
+
+log_estimates = boot_straps %>% 
+  # keep only variables: term, estimate
+  select(term, estimate) %>% 
+  # convert to wide form to get beta0(aka. intercept) and beta1(tmin)
+  pivot_wider(
+    # get term value to be new variable names
+    names_from = term,
+    # get estimate value to be new values according to their term
+    values_from = estimate
+  ) %>% 
+  # clean names
+  janitor::clean_names(.) %>% 
+  # expand the intercept and t$min
+  unnest(intercept, tmin) %>% 
+  # add a variable to indicate log(beta0*beta1)
+  mutate(log_betas = log(intercept * tmin))
+
+log_estimates_CI = log_estimates %>% 
+  pull(., log_betas) %>% 
+  # obtain CI
+  quantile(., c(.025, .975)) %>% 
+  # convert to dataframe
+  as.data.frame()
+
+```
+
+The CI of $log(\hat{β}_0*\hat{β}_1)$ that comes from bootstrap is (`r pull(log_estimates_CI, .)[1]`, `r pull(log_estimates_CI, .)[2]`).
+
+```{r log estimate density plot}
+
+log_estimates %>% 
+  # x-axis: log_betas
+  ggplot(aes(x = log_betas)) +
+  # density plot
+  geom_density(fill = "darksalmon", alpha = 0.5) +
+  # add first quartile line
+  geom_vline(aes(xintercept = pull(log_estimates_CI, .)[1]), color = "darkgreen", linetype = "longdash") +
+  # add thrid quartile line
+  geom_vline(aes(xintercept = pull(log_estimates_CI, .)[2]), color = "darkorange", linetype = "longdash") +
+  labs(
+    title = "Density Plot of Natural Log of the Product of Estimate Beta's",
+    x = "Natural Log of Estimate Betas' Product",
+    y = "Density",
+    caption = "Data here comes from 2017 Central Park Weather Data")
+
+
+```
+
+According to density of $log(\hat{β}_0*\hat{β}_1)$, we can see that this is close to normal curve. We can also tell from the CI that most of data were distributed around the center. Hence, we can say that the estimate $log(\hat{β}_0*\hat{β}_1)$ is roughly distributed normally. This density plot is not as "normal"/"belled" as $\hat{r}^2$'s distribution.
