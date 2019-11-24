@@ -137,9 +137,13 @@ baby_residual_prediction %>%
   geom_point(alpha = .5, color = "darksalmon") +
   labs(title = "Residuals vs. Fitted Value Plot for Proposed Model",
        x = "Fitted Values",
-       y = "Residuals")
+       y = "Residuals",
+       caption = "Data provided by Jeff") +
+  geom_hline(aes(yintercept = 0), color = "darkgrey") 
 
 ```
+
+We can see that residual vs. fitted plot did not indicated that the proposed model is a good regression model since the scatterplot is not random.
 
 Here, we fit two regression models stated in the homework page. 
 
@@ -160,6 +164,121 @@ interaction_model = lm(bwt ~ bhead * blength * babysex , data = baby)
 # display the model summary
 summary(interaction_model)$coefficient%>%
   knitr::kable(., col.names = c("Estimate", "Std. Error", "t value","Pr(>|t|)"), caption = "result of interaction linear regression model")
+
+```
+
+```{r cross-validated prediction error}
+
+# Make this comparison in terms of the cross-validated prediction error; use crossv_mc and functions in purrr as appropriate.
+
+# crossv_mc preforms the training / testing split multiple times, a stores the datasets using list columns.
+cv_df = crossv_mc(baby, 100)
+
+cv_df = cv_df %>% 
+  mutate(
+    train = map(train, as_tibble),
+    test = map(test, as_tibble))
+
+cv_df = cv_df %>% 
+  # create models
+  mutate(proposed_model  = map(train, ~lm(bwt ~ babysex + bhead + blength + delwt + gaweeks + parity + smoken, data = .x)),
+         main_effect_model  = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+         interaction_model  = map(train, ~lm(bwt ~ bhead * blength * babysex, data = .x))) %>% 
+  # calculate rmse
+  mutate(rmse_proposed = map2_dbl(proposed_model, test, ~rmse(model = .x, data = .y)),
+         rmse_main_effect = map2_dbl(main_effect_model, test, ~rmse(model = .x, data = .y)),
+         rmse_interaction = map2_dbl(interaction_model, test, ~rmse(model = .x, data = .y)))
+
+```
+
+I will make a violin plot to show the distribution of rmse for these three models to find the relatively best fit for this data.
+
+```{r}
+
+cv_df %>% 
+  # select only variable started with rmse
+  select(starts_with("rmse")) %>% 
+  # convert into long form
+  pivot_longer(
+    everything(),
+    names_to = "model", 
+    values_to = "rmse",
+    names_prefix = "rmse_") %>% 
+  # relevel the factor by first appearance
+  mutate(model = fct_inorder(model)) %>% 
+  # plot: x-axis - model; y-axis = rmse; fill difference colors by model
+  ggplot(aes(x = model, y = rmse, fill = model)) +
+  # violin plot
+  geom_violin(alpha = 0.5) +
+  labs(title = "Violin Plot of RMSE in Different Models",
+       x = "Models",
+       y = "Root Mean of Square Error",
+       caption = "Data provided by Jeff") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+```
+
+Based on these results, there's clearly improvements between the main effect model and interaction and proposed model. The proposed model is slightly better than interaction model, although the evidence is not by much, the advance is not obvious. Hence, here I would use the proposed model.
+
+## Problem 2
+
+```{r load data}
+
+weather_df = 
+  rnoaa::meteo_pull_monitors(
+    c("USW00094728"),
+    var = c("PRCP", "TMIN", "TMAX"), 
+    date_min = "2017-01-01",
+    date_max = "2017-12-31") %>%
+  mutate(
+    name = recode(id, USW00094728 = "CentralPark_NY"),
+    tmin = tmin / 10,
+    tmax = tmax / 10) %>%
+  select(name, id, everything())
+
+```
+
+```{r bootstrap}
+
+# draw bootstrap samples
+boot_straps = weather_df %>% 
+  modelr::bootstrap(n = 5000)
+
+# repeat analysis pipeline using the bootstrap function 
+boot_straps = boot_straps %>% 
+         # models contain info of regression model of each term in strap
+  mutate(models = map(strap, ~lm(tmax ~ tmin, data = .x)),
+         # results contains tidied data of the regression model
+         results = map(models, broom::tidy),
+         variables = map(models, broom::glance)) %>% 
+  # get rid of strap and models, but keep everything else
+  select(-strap, -models) %>% 
+  # expand the data
+  unnest(results, variables)
+
+```
+
+```{r r-hat squared plot}
+
+boot_straps %>% 
+  # keep only tmin-related info
+  filter(term == "tmin") %>% 
+  # plot: x-axis = r-squared
+  ggplot(aes(x = r.squared)) +
+  geom_density(alpha = 0.5, fill = "darksalmon") +
+    labs(
+    title = "Density Plot of the Estimate of R square",
+    x = "Estimate of R square",
+    y = "Density",
+    caption = "Data: 2017 Central Park weather data") 
+
+```
+
+According to density of $\hat{r}^2$, we can see that this is close to normal curve. Then, we look for the 95% CI of $\hat{r}^2$.
+
+```{r r-hat squared 95% CI}
+
+
 
 ```
 
